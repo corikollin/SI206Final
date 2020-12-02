@@ -65,5 +65,24 @@ def get_monthly_listeners(artist):
             break
 
     return monthly_listeners
+
+def setUpDatabase(db_name):
+    path = os.path.dirname(os.path.abspath(__file__))
+    conn = sqlite3.connect(path+'/'+db_name)
+    cur = conn.cursor()
+
+    cur.execute("DROP TABLE IF EXISTS Genres")
+    cur.execute("CREATE TABLE Genres (genre TEXT, artist TEXT)")
+
+    cur.execute("DROP TABLE IF EXISTS Artists")
+    cur.execute("CREATE TABLE Artists (artist_id TEXT, artist TEXT)")
+
+    cur.execute("DROP TABLE IF EXISTS Instagram")
+    cur.execute("CREATE TABLE Instagram (name TEXT, num_followers TEXT)")
+
+    cur.execute("DROP TABLE IF EXISTS Streams")
+    cur.execute("CREATE TABLE Streams (name TEXT, num_streams TEXT)")
+
+    return cur, conn
   
   
