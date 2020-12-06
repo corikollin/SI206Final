@@ -70,5 +70,41 @@ def get_artists_in_genre(genre):
 
     return artists
 
-  
+def average_genre_followers(filename, genre, cur):
+    cur.execute("SELECT Genres.genre, Instagram.num_followers FROM Genres INNER JOIN Instagram ON Instagram.name = Genres.artist")
+    
+    genre_followers = cur.fetchall()
+
+    if len(genre_followers) == 0:
+        return 0
+
+    sum = 0
+    for entry in genre_followers:
+        if entry[0] == genre:
+            sum += float(entry[1])
+    
+    average = int(sum / len(genre_followers))
+
+    f = open(filename, "a")
+
+    f.write(genre + ': ' + str(average) + ' followers\n')
+    f.close()
+
+    return average
+
+def write_genre_csv(filename, genres, cur, conn):
+    with open(filename, 'w') as csvfile:
+        write = csv.writer(csvfile, delimiter=',')
+        write.writerow(['genre', 'avg_followers'])
+        for i in genres:
+            write.writerow( (i, genres[i]) )
+
+def write_top_artists_csv(filename, cur, conn):
+    with open(filename, 'w') as csvfile:
+        write = csv.writer(csvfile, delimiter=',')
+        write.writerow(['num_followers','num_streams','name'])
+        cur.execute("SELECT Instagram.num_followers, Streams.num_streams, Instagram.name FROM Instagram INNER JOIN Streams ON Streams.name = Instagram.name")
+        data = cur.fetchall()
+        for i in data:
+            write.writerow( (i[0], i[1], i[2]) )  
   
