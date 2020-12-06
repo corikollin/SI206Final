@@ -106,5 +106,68 @@ def write_top_artists_csv(filename, cur, conn):
         cur.execute("SELECT Instagram.num_followers, Streams.num_streams, Instagram.name FROM Instagram INNER JOIN Streams ON Streams.name = Instagram.name")
         data = cur.fetchall()
         for i in data:
-            write.writerow( (i[0], i[1], i[2]) )  
-  
+            write.writerow( (i[0], i[1], i[2]) )
+            
+ def create_genre_graph():
+    sns.set_theme()
+    insta = pd.read_csv('genres.csv')
+    plot = sns.barplot(
+        data=insta,
+        x="genre", y="avg_followers",
+    )
+
+    for item in plot.get_xticklabels():
+        item.set_rotation(45)
+
+    matplotlib.pyplot.show()
+
+def create_top_artists_graph():
+    sns.set_theme()
+    artists = pd.read_csv('top_artists.csv')
+    artists.head()
+    plot = sns.scatterplot(
+        data=artists,
+        x="num_streams", y="num_followers",
+    )
+
+    matplotlib.pyplot.show()
+
+if __name__ == '__main__':
+    cur, conn = setUpDatabase('artists.db')
+
+    f = open("genre_average_followers.txt", "w")
+    f.write("")
+    f.close()
+
+    genre_followers = {}
+
+    genres = ["Pop", "Indie", "Hip Hop", "Country", "R&B", "Rock", "Dance / Electronic", "Funk", "K-Pop", "Jazz"]
+    
+    genres_ext = {}
+    genres_ext["Pop"] = 'pop'
+    genres_ext["Indie"] = 'indie_alt'
+    genres_ext["Hip Hop"] = 'hiphop'
+    genres_ext["Country"] = 'country'
+    genres_ext["R&B"] = 'rnb'
+    genres_ext["Rock"] = 'rock'
+    genres_ext["Dance / Electronic"] = 'edm_dance'
+    genres_ext["Funk"] = 'funk'
+    genres_ext["K-Pop"] = 'kpop'
+    genres_ext["Jazz"] = 'jazz'
+
+    for genre in genres:
+        genre_artists = getdata.get_artists_in_genre(genres_ext[genre])
+        for i in range(0,len(genre_artists) - 2,2):
+            curr_artists = {k: genre_artists[k] for k in list(genre_artists)[i:i+2]}
+            getdata.gather_data(genre, curr_artists, cur, conn)
+
+
+        genre_followers[genre] = average_genre_followers("genre_average_followers.txt",genre, cur)
+
+    write_genre_csv("genres.csv", genre_followers, cur, conn)
+    write_top_artists_csv("top_artists.csv", cur, conn)
+
+    create_genre_graph()
+    create_top_artists_graph()
+    
+    conn.close() 
