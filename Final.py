@@ -1,76 +1,70 @@
 from bs4 import BeautifulSoup
-import requests
 import sqlite3
-import seaborn as sns
 import re
 import os
-import csv
-import numpy as np
-import matplotlib
-import pandas as pd
 import getdata
+import create_visuals
 
-def setUpDatabase(db_name):
-    path = os.path.dirname(os.path.abspath(__file__))
-    conn = sqlite3.connect(path+'/'+db_name)
+# inserts each artist's name with their unique Spotify Artist ID into a table in the database
+def setIdTable(data):
+    try:
+        conn = sqlite3.connect('artists_info.db')
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS Artists (artist_id STRING,artist STRING, UNIQUE (artist))')
+
+        for artist in data:
+            cur.execute("INSERT OR IGNORE INTO Artists (artist_id,artist) VALUES (?,?)",(data[artist], artist))
+        conn.commit()
+    except:
+        print("Artists already in table")
+
+# inserts each artist's name with their respective genre, as indicated by Spotify, into the database
+def setGenreTable(genre, data):
+    try:
+        conn = sqlite3.connect('artists_info.db')
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS Genres (genre STRING,artist STRING, UNIQUE (artist))')
+        for artist in data:
+            try:
+                cur.execute("INSERT OR IGNORE INTO Genres (genre,artist) VALUES (?,?)",(genre,artist))
+            except:
+                print("Genres already in table")
+        conn.commit()
+    except:
+        return
+    
+# inserts each artist's name with their number of Instagram followers into the database
+def setInstagramTable(data):
+    try:
+        conn = sqlite3.connect('artists_info.db')
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS Instagram (name STRING,num_followers INTEGER, UNIQUE (name))')
+        for artist in data:
+            username = getdata.get_insta_username(artist)
+            num_followers = getdata.get_num_followers(username)
+            if num_followers != -1:
+                cur.execute("INSERT INTO Instagram (name,num_followers) VALUES (?,?)",(artist,num_followers))
+        conn.commit()
+    except:
+        print("Artists already in table")
+
+# inserts each artist's name with their number of Monthly Spotify Streams into the database
+def setStreamsTable(data):
+    try:
+        conn = sqlite3.connect('artists_info.db')
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS Streams (name STRING,num_streams INTEGER, UNIQUE (name))')
+        for artist in data:
+            num_streams = int(getdata.get_monthly_listeners(artist, cur))
+            cur.execute("INSERT OR IGNORE INTO Streams (name,num_streams) VALUES (?,?)",(artist,num_streams))
+        conn.commit()
+    except:
+        print("Artists already in table")
+
+# inserts each genre with its respective average number of Instagram followers of the artists in that genre
+def setGenreAverages():
+    conn = sqlite3.connect("artists_info.db")
     cur = conn.cursor()
-
-    cur.execute("DROP TABLE IF EXISTS Genres")
-    cur.execute("CREATE TABLE Genres (genre TEXT, artist TEXT)")
-
-    cur.execute("DROP TABLE IF EXISTS Artists")
-    cur.execute("CREATE TABLE Artists (artist_id TEXT, artist TEXT)")
-
-    cur.execute("DROP TABLE IF EXISTS Instagram")
-    cur.execute("CREATE TABLE Instagram (name TEXT, num_followers TEXT)")
-
-    cur.execute("DROP TABLE IF EXISTS Streams")
-    cur.execute("CREATE TABLE Streams (name TEXT, num_streams TEXT)")
-
-    return cur, conn
-
-def get_artists_in_genre(genre):
-    url = "https://open.spotify.com"
-    genre_url = url + '/genre/' + genre
-    r = requests.get(genre_url)
-    soup = BeautifulSoup(r.text, 'html.parser')
-    
-    results = soup.find_all('a')
-
-    for result in results:
-        if 'class' in result.attrs.keys() and result.attrs['class'] == ['cover', 'entity-type-playlist']:
-            r = requests.get(url + result.attrs['href'])
-            soup = BeautifulSoup(r.text, 'html.parser')
-            break
-
-    results = soup.find_all('script')
-
-    for result in results:
-        if result.contents != None and len(result.contents) > 0 and result.contents[0][:12] == '\n\t\t\t\tSpotify':
-            break
-    
-    start = 0
-
-    artists = {}
-    i = 0
-
-    while result.contents[0].find("artists", start) != -1 and i < 19:
-        start = result.contents[0].find("artists", start)
-        id_start = result.contents[0].find("id", start) + 5
-        id_end = result.contents[0].find(",", id_start) - 1
-        artist_id = result.contents[0][id_start:id_end]
-
-        name_start = result.contents[0].find("name", id_end) + 7
-        name_end = result.contents[0].find(",", name_start) - 1
-        artist_name = result.contents[0][name_start:name_end]
-
-        start = name_end
-        artists[artist_name] = artist_id
-        i += 1
-
-    return artists
-
-def average_genre_followers(filename, genre, cur):
     cur.execute("SELECT Genres.genre, Instagram.num_followers FROM Genres INNER JOIN Instagram ON Instagram.name = Genres.artist")
     
     genre_followers = cur.fetchall()
@@ -85,89 +79,75 @@ def average_genre_followers(filename, genre, cur):
     
     average = int(sum / len(genre_followers))
 
-    f = open(filename, "a")
-
-    f.write(genre + ': ' + str(average) + ' followers\n')
-    f.close()
+    try:
+        conn = sqlite3.connect('artists_info.db')
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS GenreFollowers (genre STRING,avg_followers INTEGER)')
+        cur.execute("INSERT OR IGNORE INTO GenreFollowers (genre,avg_followers) VALUES (?,?)",(genre,average))
+        conn.commit()
+    except:
+        print("Genre already in table")
 
     return average
 
-def write_genre_csv(filename, genres, cur, conn):
-    with open(filename, 'w') as csvfile:
-        write = csv.writer(csvfile, delimiter=',')
-        write.writerow(['genre', 'avg_followers'])
-        for i in genres:
-            write.writerow( (i, genres[i]) )
+# prints to a txt file each genre collected and its respective average number of Instagram followers for the artists of that genre
+def print_genre_averages_to_file(filename):
+    conn = sqlite3.connect("artists_info.db")
+    cur = conn.cursor()
+    cur.execute("SELECT genre, avg_followers FROM GenreFollowers")
+    genre_followers = cur.fetchall()
 
-def write_top_artists_csv(filename, cur, conn):
-    with open(filename, 'w') as csvfile:
-        write = csv.writer(csvfile, delimiter=',')
-        write.writerow(['num_followers','num_streams','name'])
-        cur.execute("SELECT Instagram.num_followers, Streams.num_streams, Instagram.name FROM Instagram INNER JOIN Streams ON Streams.name = Instagram.name")
-        data = cur.fetchall()
-        for i in data:
-            write.writerow( (i[0], i[1], i[2]) )
-            
- def create_genre_graph():
-    sns.set_theme()
-    insta = pd.read_csv('genres.csv')
-    plot = sns.barplot(
-        data=insta,
-        x="genre", y="avg_followers",
-    )
+    f = open(filename, "a")
 
-    for item in plot.get_xticklabels():
-        item.set_rotation(45)
-
-    matplotlib.pyplot.show()
-
-def create_top_artists_graph():
-    sns.set_theme()
-    artists = pd.read_csv('top_artists.csv')
-    artists.head()
-    plot = sns.scatterplot(
-        data=artists,
-        x="num_streams", y="num_followers",
-    )
-
-    matplotlib.pyplot.show()
+    for entry in genre_followers:
+        f.write(entry[0] + ': ' + str(entry[1]) + ' followers\n')
+    f.close()
 
 if __name__ == '__main__':
-    cur, conn = setUpDatabase('artists.db')
-
+    
+    # ensures .txt file is blank
     f = open("genre_average_followers.txt", "w")
     f.write("")
     f.close()
 
-    genre_followers = {}
-
-    genres = ["Pop", "Indie", "Hip Hop", "Country", "R&B", "Rock", "Dance / Electronic", "Funk", "K-Pop", "Jazz"]
+    # list of typical genres
+    genres = ["Christian", "Country", "Dance / Electronic", "Funk", "Hip Hop", "Indie", "Jazz", "K-Pop", "Pop", "R&B", "Rock"]
     
+    # asks user which genre they want to get data for
+    genre = input('Select one of the following genres by entering its respective number:\n1: Christian\n2: Country\n3: Dance / Electronic\n4: Funk\n5: Hip Hop\n6: Indie\n7: Jazz\n8: K-Pop\n9: Pop\n10: R&B\n11: Rock\n')
+
+    while int(genre) < 1 or int(genre) > 11:
+        print("Invaliid option, please select another genre")
+        genre = input()
+
+    genre = genres[int(genre) - 1]
+
     genres_ext = {}
-    genres_ext["Pop"] = 'pop'
-    genres_ext["Indie"] = 'indie_alt'
-    genres_ext["Hip Hop"] = 'hiphop'
+    
+    genres_ext["Christian"] = 'inspirational'
     genres_ext["Country"] = 'country'
-    genres_ext["R&B"] = 'rnb'
-    genres_ext["Rock"] = 'rock'
     genres_ext["Dance / Electronic"] = 'edm_dance'
     genres_ext["Funk"] = 'funk'
-    genres_ext["K-Pop"] = 'kpop'
+    genres_ext["Hip Hop"] = 'hiphop'
+    genres_ext["Indie"] = 'indie_alt'
     genres_ext["Jazz"] = 'jazz'
+    genres_ext["K-Pop"] = 'kpop'
+    genres_ext["Pop"] = 'pop'
+    genres_ext["R&B"] = 'rnb'
+    genres_ext["Rock"] = 'rock'
 
-    for genre in genres:
-        genre_artists = getdata.get_artists_in_genre(genres_ext[genre])
-        for i in range(0,len(genre_artists) - 2,2):
-            curr_artists = {k: genre_artists[k] for k in list(genre_artists)[i:i+2]}
-            getdata.gather_data(genre, curr_artists, cur, conn)
+    genre_artists = getdata.get_artists_in_genre(genres_ext[genre])
 
+    # gathers all data for artists in specified genre and inserts into database
+    setGenreTable(genre,genre_artists)
+    setIdTable(genre_artists)
+    setStreamsTable(genre_artists)
+    setInstagramTable(genre_artists)
+    setGenreAverages()
 
-        genre_followers[genre] = average_genre_followers("genre_average_followers.txt",genre, cur)
+    # uncomment when all data has been gathered to create final visuals
+    #create_visuals.create_visuals(genre_artists)
 
-    write_genre_csv("genres.csv", genre_followers, cur, conn)
-    write_top_artists_csv("top_artists.csv", cur, conn)
-
-    create_genre_graph()
-    create_top_artists_graph()
+    # uncomment to print the average number of followers per genre to the specified .txt file
+    # print_genre_averages_to_file("genre_average_followers.txt")
     
-    conn.close() 
