@@ -146,7 +146,7 @@ if __name__ == '__main__':
     setGenreAverages()
 
     # uncomment when all data has been gathered to create final visuals
-    #create_visuals.create_visuals(genre_artists)
+    create_visuals.create_visuals()
 
     # uncomment to print the average number of followers per genre to the specified .txt file
     # print_genre_averages_to_file("genre_average_followers.txt")
