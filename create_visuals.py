@@ -34,7 +34,7 @@ def create_top_artists_graph():
 
     matplotlib.pyplot.show()
 
-def create_visuals(genre_followers):
+def create_visuals():
 
     create_genre_graph()
     create_top_artists_graph()
