@@ -13,10 +13,14 @@ def setIdTable(data):
         cur.execute('CREATE TABLE IF NOT EXISTS Artists (artist_id STRING,artist STRING, UNIQUE (artist))')
 
         for artist in data:
-            cur.execute("INSERT OR IGNORE INTO Artists (artist_id,artist) VALUES (?,?)",(data[artist], artist))
+            try:
+                cur.execute("INSERT OR IGNORE INTO Artists (artist_id,artist) VALUES (?,?)",(data[artist], artist))
+        
+            except:
+                print("Artist is already in table")
         conn.commit()
     except:
-        print("Artist is already in table")
+        return
 
 # inserts each artist's name with their respective genre, as indicated by Spotify, into the database
 def setGenreTable(genre, data):
@@ -28,7 +32,7 @@ def setGenreTable(genre, data):
             try:
                 cur.execute("INSERT OR IGNORE INTO Genres (genre,artist) VALUES (?,?)",(genre,artist))
             except:
-                print("Genre is already in table")
+                print("Genres already in table")
         conn.commit()
     except:
         return
@@ -46,7 +50,7 @@ def setInstagramTable(data):
                 cur.execute("INSERT INTO Instagram (name,num_followers) VALUES (?,?)",(artist,num_followers))
         conn.commit()
     except:
-        print("Artist is already in table")
+        print("Artists already in table")
 
 # inserts each artist's name with their number of Monthly Spotify Streams into the database
 def setStreamsTable(data):
@@ -59,7 +63,7 @@ def setStreamsTable(data):
             cur.execute("INSERT OR IGNORE INTO Streams (name,num_streams) VALUES (?,?)",(artist,num_streams))
         conn.commit()
     except:
-        print("Artist is already in table")
+        print("Artists already in table")
 
 # inserts each genre with its respective average number of Instagram followers of the artists in that genre
 def setGenreAverages():
@@ -86,9 +90,30 @@ def setGenreAverages():
         cur.execute("INSERT OR IGNORE INTO GenreFollowers (genre,avg_followers) VALUES (?,?)",(genre,average))
         conn.commit()
     except:
-        print("Genre is already in table")
+        print("Genre already in table")
 
-    return average
+
+def setGenreStreams(genres):
+    conn = sqlite3.connect("artists_info.db")
+    cur = conn.cursor()
+    cur.execute("SELECT Genres.genre, Streams.num_streams FROM Genres INNER JOIN Streams ON Streams.name = Genres.artist")
+    
+    genre_streams = cur.fetchall()
+
+    for genre in genres:
+        sum = 0
+        for entry in genre_streams:
+            if entry[0] == genre:
+                sum += float(entry[1])
+
+        try:
+            conn = sqlite3.connect('artists_info.db')
+            cur = conn.cursor()
+            cur.execute('CREATE TABLE IF NOT EXISTS GenreStreams (genre STRING,total_streams INTEGER)')
+            cur.execute("INSERT OR IGNORE INTO GenreStreams (genre,total_streams) VALUES (?,?)",(genre,sum))
+            conn.commit()
+        except:
+            print("Genre already in table")
 
 # prints to a txt file each genre collected and its respective average number of Instagram followers for the artists of that genre
 def print_genre_averages_to_file(filename):
@@ -144,9 +169,10 @@ if __name__ == '__main__':
     setStreamsTable(genre_artists)
     setInstagramTable(genre_artists)
     setGenreAverages()
+    setGenreStreams(genres)
 
     # uncomment when all data has been gathered to create final visuals
-    create_visuals.create_visuals()
+    #create_visuals.create_visuals()
 
     # uncomment to print the average number of followers per genre to the specified .txt file
     # print_genre_averages_to_file("genre_average_followers.txt")
