@@ -33,8 +33,25 @@ def create_top_artists_graph():
     )
 
     matplotlib.pyplot.show()
+    
+    def create_streams_graph():
+    conn = sqlite3.connect('artists_info.db')
+    genre_streams = pd.read_sql_query("SELECT genre, total_streams FROM GenreStreams", conn)
+
+    sns.set_theme()
+    plot = sns.barplot(
+        data=genre_streams,
+        x="genre", y="total_streams",
+    )
+
+    for item in plot.get_xticklabels():
+        item.set_rotation(45)
+
+    matplotlib.pyplot.show()
 
 def create_visuals():
 
     create_genre_graph()
     create_top_artists_graph()
+    create_streams_graph()
+
