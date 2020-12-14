@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import sqlite3
 import re
 import os
-import getData
+import getdata
 import create_visuals
 
 # inserts each artist's name with their unique Spotify Artist ID into a table in the database
